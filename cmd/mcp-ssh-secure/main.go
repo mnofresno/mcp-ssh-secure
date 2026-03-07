@@ -125,24 +125,27 @@ func toolDefs() []tool {
 		},
 		{
 			Name:        "ensure_ssh_agent_key",
-			Description: "Verifica si una key tiene passphrase y la agrega al ssh-agent. Si falta passphrase devuelve instrucciones para pedirla al usuario.",
+			Description: "Verifica si una key tiene passphrase y la agrega al ssh-agent. Si falta passphrase devuelve instrucciones para pedirla al usuario. profile es opcional y se resuelve por alias/default.",
 			InputSchema: map[string]any{
-				"type":     "object",
-				"required": []string{"profile"},
+				"type": "object",
 				"properties": map[string]any{
 					"profile":    map[string]any{"type": "string"},
+					"target":     map[string]any{"type": "string"},
+					"server":     map[string]any{"type": "string"},
 					"passphrase": map[string]any{"type": "string"},
 				},
 			},
 		},
 		{
 			Name:        "run_ssh_command",
-			Description: "Ejecuta un comando remoto por SSH con profile seleccionado.",
+			Description: "Ejecuta un comando remoto por SSH. profile es opcional y se resuelve de forma laxa (prod/production/etc.).",
 			InputSchema: map[string]any{
 				"type":     "object",
-				"required": []string{"profile", "command"},
+				"required": []string{"command"},
 				"properties": map[string]any{
 					"profile":      map[string]any{"type": "string"},
+					"target":       map[string]any{"type": "string"},
+					"server":       map[string]any{"type": "string"},
 					"command":      map[string]any{"type": "string"},
 					"timeout_sec":  map[string]any{"type": "integer", "minimum": 1},
 					"allocate_tty": map[string]any{"type": "boolean"},
@@ -151,12 +154,14 @@ func toolDefs() []tool {
 		},
 		{
 			Name:        "run_sudo_command",
-			Description: "Ejecuta comando remoto con sudo -S. Requiere confirm='YES' para minimizar elevaciones accidentales.",
+			Description: "Ejecuta comando remoto con sudo -S. Requiere confirm='YES'. profile es opcional y se resuelve por alias/default.",
 			InputSchema: map[string]any{
 				"type":     "object",
-				"required": []string{"profile", "command", "confirm"},
+				"required": []string{"command", "confirm"},
 				"properties": map[string]any{
 					"profile":       map[string]any{"type": "string"},
+					"target":        map[string]any{"type": "string"},
+					"server":        map[string]any{"type": "string"},
 					"command":       map[string]any{"type": "string"},
 					"confirm":       map[string]any{"type": "string", "enum": []string{"YES"}},
 					"timeout_sec":   map[string]any{"type": "integer", "minimum": 1},
@@ -194,9 +199,9 @@ func handleToolCall(raw json.RawMessage, cfg *config.Config, runner *sshutil.Run
 		}
 		return strings.Join(profiles, "\n"), nil
 	case "ensure_ssh_agent_key":
-		profile, ok := strArg(payload.Arguments, "profile")
+		profile, _, ok := resolveProfileFromArgs(cfg, payload.Arguments)
 		if !ok {
-			return "", errors.New("missing profile")
+			return "", errors.New("could not resolve profile from profile/target/server. Configure a default profile or provide a hint like 'prod'")
 		}
 		passphrase, _ := strArg(payload.Arguments, "passphrase")
 		out, err := runner.EnsureKey(context.Background(), profile, passphrase)
@@ -205,9 +210,9 @@ func handleToolCall(raw json.RawMessage, cfg *config.Config, runner *sshutil.Run
 		}
 		return out, nil
 	case "run_ssh_command":
-		profile, ok := strArg(payload.Arguments, "profile")
+		profile, resolvedBy, ok := resolveProfileFromArgs(cfg, payload.Arguments)
 		if !ok {
-			return "", errors.New("missing profile")
+			return "", errors.New("could not resolve profile from profile/target/server. Configure a default profile or provide a hint like 'prod'")
 		}
 		command, ok := strArg(payload.Arguments, "command")
 		if !ok {
@@ -215,11 +220,15 @@ func handleToolCall(raw json.RawMessage, cfg *config.Config, runner *sshutil.Run
 		}
 		timeout := durationArg(payload.Arguments, "timeout_sec", 45*time.Second)
 		allocateTTY := boolArg(payload.Arguments, "allocate_tty", false)
-		return runner.RunSSH(profile, command, timeout, allocateTTY)
+		out, err := runner.RunSSH(profile, command, timeout, allocateTTY)
+		if err != nil {
+			return out, err
+		}
+		return fmt.Sprintf("[%s:%s]\n%s", resolvedBy, profile, out), nil
 	case "run_sudo_command":
-		profile, ok := strArg(payload.Arguments, "profile")
+		profile, resolvedBy, ok := resolveProfileFromArgs(cfg, payload.Arguments)
 		if !ok {
-			return "", errors.New("missing profile")
+			return "", errors.New("could not resolve profile from profile/target/server. Configure a default profile or provide a hint like 'prod'")
 		}
 		command, ok := strArg(payload.Arguments, "command")
 		if !ok {
@@ -231,7 +240,11 @@ func handleToolCall(raw json.RawMessage, cfg *config.Config, runner *sshutil.Run
 		}
 		overridePassword, _ := strArg(payload.Arguments, "sudo_password")
 		timeout := durationArg(payload.Arguments, "timeout_sec", 45*time.Second)
-		return runner.RunSudoSSH(profile, command, timeout, overridePassword)
+		out, err := runner.RunSudoSSH(profile, command, timeout, overridePassword)
+		if err != nil {
+			return out, err
+		}
+		return fmt.Sprintf("[%s:%s]\n%s", resolvedBy, profile, out), nil
 	case "audit_tail":
 		lines := intArg(payload.Arguments, "lines", 40)
 		if lines < 1 {
@@ -244,6 +257,28 @@ func handleToolCall(raw json.RawMessage, cfg *config.Config, runner *sshutil.Run
 	default:
 		return "", fmt.Errorf("tool not found: %s", payload.Name)
 	}
+}
+
+func resolveProfileFromArgs(cfg *config.Config, args map[string]interface{}) (profile string, resolvedBy string, ok bool) {
+	if v, ok := strArg(args, "profile"); ok {
+		if name, _, found := cfg.ResolveProfile(v); found {
+			return name, "profile", true
+		}
+	}
+	if v, ok := strArg(args, "target"); ok {
+		if name, _, found := cfg.ResolveProfile(v); found {
+			return name, "target", true
+		}
+	}
+	if v, ok := strArg(args, "server"); ok {
+		if name, _, found := cfg.ResolveProfile(v); found {
+			return name, "server", true
+		}
+	}
+	if name, _, found := cfg.ResolveProfile(""); found {
+		return name, "default", true
+	}
+	return "", "", false
 }
 
 func strArg(args map[string]interface{}, key string) (string, bool) {

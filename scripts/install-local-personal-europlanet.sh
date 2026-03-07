@@ -34,7 +34,17 @@ cat > "${CONFIG_FILE}" <<JSON
       "strict_host_key_checking": true,
       "connect_timeout_sec": 15,
       "sudo_password_file": "${SUDO_PATH}",
-      "auth_mode": "key"
+      "auth_mode": "key",
+      "aliases": [
+        "prod",
+        "production",
+        "produccion",
+        "servidor de prod",
+        "server de prod",
+        "mi server de prod",
+        "server de produccion"
+      ],
+      "default": true
     }
   },
   "audit": {

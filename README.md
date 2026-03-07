@@ -18,6 +18,8 @@ Servidor MCP en Go para ejecutar SSH de forma segura, genérica y auditable, sin
 - `run_sudo_command`
 - `audit_tail`
 
+`profile` es opcional en las herramientas de ejecución y se resuelve por alias/default.
+
 ## Diseño de seguridad
 
 - Las credenciales viven en `~/.config/mcp-ssh-secure/profiles.json` y/o en archivos locales referenciados.
@@ -51,10 +53,11 @@ Ese script:
 - configura `sudo_password_file` hacia `$HOME/digital_ocean/.sudo_password_temp`
 - compila binario en `~/mcp-ssh-secure/bin/mcp-ssh-secure`
 - agrega el servidor MCP como 8º servidor en `~/.codex/config.toml`
+- configura alias laxos para producción (`prod`, `production`, `server de prod`, etc.)
 
 ## Flujo con keys con passphrase
 
-1. LLM llama `ensure_ssh_agent_key` con `{ "profile": "personal_europlanet" }`.
+1. LLM llama `ensure_ssh_agent_key` con `{}` o con un hint laxo como `{ "profile": "prod" }`.
 2. Si falta passphrase, el servidor devuelve mensaje pidiendo passphrase.
 3. LLM le pide passphrase al usuario.
 4. LLM llama `ensure_ssh_agent_key` con passphrase.
