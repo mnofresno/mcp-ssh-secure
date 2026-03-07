@@ -1,0 +1,10 @@
+/bin/
+/dist/
+*.log
+*.tmp
+*.swp
+/.env
+/.env.*
+/profiles.json
+/.DS_Store
+coverage.out
