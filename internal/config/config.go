@@ -215,9 +215,8 @@ func (c *Config) resolveDefaultProfile() (string, Profile, bool) {
 
 func looksLikeProd(q string) bool {
 	needles := []string{
-		"prod", "production", "produccion", "producción",
-		"server de prod", "servidor de prod", "mi server de prod",
-		"server de produccion", "servidor de produccion",
+		"prod", "production",
+		"production server", "my production server",
 		"live", "main server",
 	}
 	for _, n := range needles {
@@ -233,7 +232,7 @@ func profileLooksProd(name string, p Profile) bool {
 	all = append(all, p.Aliases...)
 	for _, v := range all {
 		n := normalizeQuery(v)
-		if strings.Contains(n, "prod") || strings.Contains(n, "production") || strings.Contains(n, "produccion") || strings.Contains(n, "live") {
+		if strings.Contains(n, "prod") || strings.Contains(n, "production") || strings.Contains(n, "live") {
 			return true
 		}
 	}

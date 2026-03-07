@@ -1,16 +1,16 @@
 # mcp-ssh-secure
 
-Servidor MCP en Go para ejecutar SSH de forma segura, genérica y auditable, sin guardar credenciales en el repositorio.
+Go-based MCP server for secure, generic, and auditable SSH execution without storing credentials in the repository.
 
-## Objetivos
+## Goals
 
-- Soportar conexiones SSH genéricas (`key`, `agent`, `password`).
-- Manejar keys con passphrase en forma interactiva con `ssh-add`.
-- Exigir confirmación explícita antes de ejecutar comandos con `sudo`.
-- Guardar auditoría local sin secretos.
-- Mantener credenciales fuera de Git.
+- Support generic SSH connection modes (`key`, `agent`, `password`).
+- Handle passphrase-protected SSH keys with interactive `ssh-add` flows.
+- Require explicit confirmation before running `sudo` commands.
+- Keep local audit logs without exposing secrets.
+- Keep credentials out of source control.
 
-## Herramientas MCP
+## MCP Tools
 
 - `list_profiles`
 - `ensure_ssh_agent_key`
@@ -18,18 +18,18 @@ Servidor MCP en Go para ejecutar SSH de forma segura, genérica y auditable, sin
 - `run_sudo_command`
 - `audit_tail`
 
-`profile` es opcional en las herramientas de ejecución y se resuelve por alias/default.
+`profile` is optional for execution tools and is resolved by alias/default matching.
 
-## Diseño de seguridad
+## Security Design
 
-- Las credenciales viven en `~/.config/mcp-ssh-secure/profiles.json` y/o en archivos locales referenciados.
-- El repo incluye solo `profiles.example.json`.
-- Auditoría local en `~/.local/state/mcp-ssh-secure/audit.log` con permisos `0600`.
-- `run_sudo_command` requiere `confirm="YES"`.
-- Si la key SSH tiene passphrase, `ensure_ssh_agent_key` responde error controlado para que el LLM pida passphrase al usuario.
-- En cada reinicio de la computadora se pierde el estado del `ssh-agent`, por diseño se requiere volver a ejecutar `ensure_ssh_agent_key`.
+- Credentials live in `~/.config/mcp-ssh-secure/profiles.json` and/or referenced local files.
+- The repository includes only `profiles.example.json`.
+- Local audit file is `~/.local/state/mcp-ssh-secure/audit.log` with `0600` permissions.
+- `run_sudo_command` requires `confirm="YES"`.
+- If an SSH key is passphrase-protected, `ensure_ssh_agent_key` returns a controlled error so the LLM asks the user for the passphrase.
+- After OS restart, `ssh-agent` state is lost by design; run `ensure_ssh_agent_key` again.
 
-## Instalación rápida
+## Quick Install
 
 ```bash
 git clone https://github.com/mnofresno/mcp-ssh-secure.git
@@ -39,29 +39,29 @@ mkdir -p ~/.config/mcp-ssh-secure
 cp profiles.example.json ~/.config/mcp-ssh-secure/profiles.json
 ```
 
-## Instalación específica (personal_europlanet)
+## Environment-specific Install (personal_europlanet)
 
-Este repo incluye un script para tu entorno:
+This repository includes an environment bootstrap script:
 
 ```bash
 bash scripts/install-local-personal-europlanet.sh
 ```
 
-Ese script:
+That script:
 
-- crea `~/.config/mcp-ssh-secure/profiles.json` apuntando a `$HOME/digital_ocean/vps-digital-ocean`
-- configura `sudo_password_file` hacia `$HOME/digital_ocean/.sudo_password_temp`
-- compila binario en `~/mcp-ssh-secure/bin/mcp-ssh-secure`
-- agrega el servidor MCP como 8º servidor en `~/.codex/config.toml`
-- configura alias laxos para producción (`prod`, `production`, `server de prod`, etc.)
+- creates `~/.config/mcp-ssh-secure/profiles.json` using local credential files
+- sets `sudo_password_file` from a local secure file
+- builds the binary at `~/mcp-ssh-secure/bin/mcp-ssh-secure`
+- registers the server as the 8th MCP server in `~/.codex/config.toml`
+- configures relaxed production aliases (`prod`, `production`, `production server`, etc.)
 
-## Flujo con keys con passphrase
+## Passphrase Flow
 
-1. LLM llama `ensure_ssh_agent_key` con `{}` o con un hint laxo como `{ "profile": "prod" }`.
-2. Si falta passphrase, el servidor devuelve mensaje pidiendo passphrase.
-3. LLM le pide passphrase al usuario.
-4. LLM llama `ensure_ssh_agent_key` con passphrase.
-5. `ssh-add` guarda la key en `ssh-agent` para la sesión actual del OS.
+1. LLM calls `ensure_ssh_agent_key` with `{}` or a relaxed hint like `{ "profile": "prod" }`.
+2. If passphrase is required, the server returns a message requesting it.
+3. LLM asks the user for the passphrase.
+4. LLM calls `ensure_ssh_agent_key` again with `passphrase`.
+5. `ssh-add` stores the key in `ssh-agent` for the current OS session.
 
 ## Testing
 
@@ -69,17 +69,17 @@ Ese script:
 go test ./...
 ```
 
-## Auditoría
+## Audit
 
-Archivo local:
+Local file:
 
 - `~/.local/state/mcp-ssh-secure/audit.log`
 
-Consulta desde MCP:
+Query from MCP:
 
 - `audit_tail`
 
-## Limitaciones
+## Limitations
 
-- El modo `password` requiere `sshpass` instalado.
-- Este servidor delega en binarios `ssh`, `ssh-add`, `ssh-keygen` del sistema.
+- `password` mode requires `sshpass`.
+- This server delegates to system binaries `ssh`, `ssh-add`, and `ssh-keygen`.

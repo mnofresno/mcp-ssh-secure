@@ -10,7 +10,7 @@
       "connect_timeout_sec": 15,
       "sudo_password_file": "~/.secrets/example_sudo_password",
       "auth_mode": "key",
-      "aliases": ["prod", "production", "server de prod"],
+      "aliases": ["prod", "production", "production server"],
       "default": true
     }
   },

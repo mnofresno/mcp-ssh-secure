@@ -120,12 +120,12 @@ func toolDefs() []tool {
 	return []tool{
 		{
 			Name:        "list_profiles",
-			Description: "Lista perfiles SSH disponibles desde el archivo local seguro.",
+			Description: "Lists available SSH profiles from the local secure config file.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 		{
 			Name:        "ensure_ssh_agent_key",
-			Description: "Verifica si una key tiene passphrase y la agrega al ssh-agent. Si falta passphrase devuelve instrucciones para pedirla al usuario. profile es opcional y se resuelve por alias/default.",
+			Description: "Checks whether an SSH key requires a passphrase and adds it to ssh-agent. If passphrase is required, returns instructions to ask the user. profile is optional and resolved by alias/default.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -138,7 +138,7 @@ func toolDefs() []tool {
 		},
 		{
 			Name:        "run_ssh_command",
-			Description: "Ejecuta un comando remoto por SSH. profile es opcional y se resuelve de forma laxa (prod/production/etc.).",
+			Description: "Runs a remote command over SSH. profile is optional and resolved with relaxed matching (prod/production/etc.).",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"command"},
@@ -154,7 +154,7 @@ func toolDefs() []tool {
 		},
 		{
 			Name:        "run_sudo_command",
-			Description: "Ejecuta comando remoto con sudo -S. Requiere confirm='YES'. profile es opcional y se resuelve por alias/default.",
+			Description: "Runs a remote command using sudo -S. Requires confirm='YES'. profile is optional and resolved by alias/default.",
 			InputSchema: map[string]any{
 				"type":     "object",
 				"required": []string{"command", "confirm"},
@@ -171,7 +171,7 @@ func toolDefs() []tool {
 		},
 		{
 			Name:        "audit_tail",
-			Description: "Devuelve últimas líneas de auditoría local (sin secretos).",
+			Description: "Returns the latest local audit lines (without secrets).",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

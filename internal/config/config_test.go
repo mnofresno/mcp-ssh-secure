@@ -12,9 +12,9 @@ func TestResolveProfile_DefaultSingle(t *testing.T) {
 
 func TestResolveProfile_ByAlias(t *testing.T) {
 	cfg := &Config{Profiles: map[string]Profile{
-		"personal_europlanet": {Host: "h", User: "u", Aliases: []string{"prod", "production", "server de prod"}},
+		"personal_europlanet": {Host: "h", User: "u", Aliases: []string{"prod", "production", "production server"}},
 	}}
-	name, _, ok := cfg.ResolveProfile("mi server de prod")
+	name, _, ok := cfg.ResolveProfile("my production server")
 	if !ok || name != "personal_europlanet" {
 		t.Fatalf("unexpected resolve: ok=%v name=%q", ok, name)
 	}

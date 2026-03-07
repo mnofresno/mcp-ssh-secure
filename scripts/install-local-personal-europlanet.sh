@@ -38,11 +38,10 @@ cat > "${CONFIG_FILE}" <<JSON
       "aliases": [
         "prod",
         "production",
-        "produccion",
-        "servidor de prod",
-        "server de prod",
-        "mi server de prod",
-        "server de produccion"
+        "production server",
+        "my production server",
+        "live",
+        "main server"
       ],
       "default": true
     }
