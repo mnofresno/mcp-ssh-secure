@@ -7,6 +7,7 @@
       "key_path": "~/.ssh/id_rsa",
       "known_hosts_path": "~/.ssh/known_hosts",
       "strict_host_key_checking": true,
+      "force_ipv4": false,
       "connect_timeout_sec": 15,
       "sudo_password_file": "~/.secrets/example_sudo_password",
       "auth_mode": "key",

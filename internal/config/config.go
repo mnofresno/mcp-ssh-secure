@@ -27,6 +27,7 @@ type Profile struct {
 	KeyPath          string   `json:"key_path,omitempty"`
 	KnownHostsPath   string   `json:"known_hosts_path,omitempty"`
 	StrictHostKey    bool     `json:"strict_host_key_checking"`
+	ForceIPv4        bool     `json:"force_ipv4,omitempty"`
 	ConnectTimeoutS  int      `json:"connect_timeout_sec"`
 	SudoPasswordFile string   `json:"sudo_password_file,omitempty"`
 	AuthMode         string   `json:"auth_mode,omitempty"` // key|agent|password

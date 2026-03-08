@@ -62,7 +62,7 @@ func (r *Runner) RunSSH(profileName, command string, timeout time.Duration, allo
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := buildSSHCommand(ctx, p, command, allocateTTY)
+	cmd := buildSSHCommand(ctx, p, command, allocateTTY, false)
 	out, err := runCmd(cmd, "")
 	if err != nil {
 		r.audit("run_ssh", profileName, "error", err.Error())
@@ -94,7 +94,7 @@ func (r *Runner) RunSudoSSH(profileName, command string, timeout time.Duration, 
 	defer cancel()
 
 	wrapped := fmt.Sprintf("sudo -S -p '' bash -lc %q", command)
-	cmd := buildSSHCommand(ctx, p, wrapped, true)
+	cmd := buildSSHCommand(ctx, p, wrapped, true, true)
 	out, err := runCmd(cmd, password+"\n")
 	if err != nil {
 		r.audit("run_sudo", profileName, "error", err.Error())
@@ -135,18 +135,30 @@ func runCmd(cmd *exec.Cmd, stdin string) (string, error) {
 	return combined, nil
 }
 
-func buildSSHCommand(ctx context.Context, p config.Profile, remoteCommand string, tty bool) *exec.Cmd {
-	args := []string{"-o", fmt.Sprintf("ConnectTimeout=%d", p.ConnectTimeoutS), "-o", "BatchMode=no", "-p", fmt.Sprintf("%d", p.Port)}
+func buildSSHCommand(ctx context.Context, p config.Profile, remoteCommand string, tty bool, allowStdin bool) *exec.Cmd {
+	args := []string{"-o", fmt.Sprintf("ConnectTimeout=%d", p.ConnectTimeoutS), "-p", fmt.Sprintf("%d", p.Port)}
+	if p.AuthMode == "password" {
+		args = append(args, "-o", "BatchMode=no")
+	} else {
+		// Fail fast in non-interactive MCP flows instead of hanging on passphrase/password prompts.
+		args = append(args, "-o", "BatchMode=yes", "-o", "NumberOfPasswordPrompts=0")
+	}
 	if p.StrictHostKey {
 		args = append(args, "-o", "StrictHostKeyChecking=yes")
 	} else {
 		args = append(args, "-o", "StrictHostKeyChecking=accept-new")
+	}
+	if p.ForceIPv4 {
+		args = append(args, "-4")
 	}
 	if p.KnownHostsPath != "" {
 		args = append(args, "-o", fmt.Sprintf("UserKnownHostsFile=%s", p.KnownHostsPath))
 	}
 	if p.KeyPath != "" && (p.AuthMode == "key" || p.AuthMode == "agent") {
 		args = append(args, "-i", p.KeyPath)
+	}
+	if !allowStdin {
+		args = append(args, "-n")
 	}
 	if tty {
 		args = append(args, "-tt")

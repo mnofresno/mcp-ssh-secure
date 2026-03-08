@@ -19,16 +19,17 @@ func TestBuildSSHCommandKeyMode(t *testing.T) {
 		User:            "alice",
 		KeyPath:         "/tmp/key",
 		StrictHostKey:   true,
+		ForceIPv4:       true,
 		KnownHostsPath:  "/tmp/known_hosts",
 		ConnectTimeoutS: 10,
 		AuthMode:        "key",
 	}
-	cmd := buildSSHCommand(context.Background(), p, "uname -a", false)
+	cmd := buildSSHCommand(context.Background(), p, "uname -a", false, false)
 	if filepath.Base(cmd.Path) != "ssh" {
 		t.Fatalf("expected ssh binary, got %s", cmd.Path)
 	}
 	args := strings.Join(cmd.Args, " ")
-	for _, want := range []string{"-p 2222", "-i /tmp/key", "alice@example.com", "StrictHostKeyChecking=yes"} {
+	for _, want := range []string{"-p 2222", "-i /tmp/key", "alice@example.com", "StrictHostKeyChecking=yes", "BatchMode=yes", "NumberOfPasswordPrompts=0", "-4", "-n"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("missing arg %q in %s", want, args)
 		}
@@ -37,7 +38,7 @@ func TestBuildSSHCommandKeyMode(t *testing.T) {
 
 func TestBuildSSHCommandPasswordMode(t *testing.T) {
 	p := config.Profile{Host: "h", Port: 22, User: "u", AuthMode: "password", PasswordFile: "/tmp/pw", ConnectTimeoutS: 5}
-	cmd := buildSSHCommand(context.Background(), p, "id", false)
+	cmd := buildSSHCommand(context.Background(), p, "id", false, false)
 	if filepath.Base(cmd.Path) != "sshpass" {
 		t.Fatalf("expected sshpass binary, got %s", cmd.Path)
 	}
@@ -85,7 +86,7 @@ func TestTimeoutContextBuild(t *testing.T) {
 	p := config.Profile{Host: "h", Port: 22, User: "u", ConnectTimeoutS: 1, AuthMode: "agent"}
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	cmd := buildSSHCommand(ctx, p, "true", false)
+	cmd := buildSSHCommand(ctx, p, "true", false, false)
 	if cmd == nil {
 		t.Fatal("nil cmd")
 	}

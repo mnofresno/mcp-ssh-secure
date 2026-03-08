@@ -25,6 +25,7 @@ Go-based MCP server for secure, generic, and auditable SSH execution without sto
 - Credentials live in `~/.config/mcp-ssh-secure/profiles.json` and/or referenced local files.
 - The repository includes only `profiles.example.json`.
 - Local audit file is `~/.local/state/mcp-ssh-secure/audit.log` with `0600` permissions.
+- `run_ssh_command` runs in non-interactive mode for `key`/`agent` auth to fail fast instead of hanging on prompts.
 - `run_sudo_command` requires `confirm="YES"`.
 - If an SSH key is passphrase-protected, `ensure_ssh_agent_key` returns a controlled error so the LLM asks the user for the passphrase.
 - After OS restart, `ssh-agent` state is lost by design; run `ensure_ssh_agent_key` again.
@@ -54,6 +55,7 @@ That script:
 - builds the binary at `~/mcp-ssh-secure/bin/mcp-ssh-secure`
 - registers the server as the 8th MCP server in `~/.codex/config.toml`
 - configures relaxed production aliases (`prod`, `production`, `production server`, etc.)
+- enables `force_ipv4` to match the local `personal_europlanet.sh` behavior (`ssh -4`)
 
 ## Passphrase Flow
 

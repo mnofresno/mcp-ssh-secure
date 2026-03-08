@@ -32,6 +32,7 @@ cat > "${CONFIG_FILE}" <<JSON
       "key_path": "${KEY_PATH}",
       "known_hosts_path": "${KNOWN_HOSTS_PATH}",
       "strict_host_key_checking": true,
+      "force_ipv4": true,
       "connect_timeout_sec": 15,
       "sudo_password_file": "${SUDO_PATH}",
       "auth_mode": "key",
