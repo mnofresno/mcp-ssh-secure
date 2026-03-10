@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mnofresno/mcp-ssh-secure/internal/audit"
 	"github.com/mnofresno/mcp-ssh-secure/internal/config"
 )
 
@@ -102,5 +103,56 @@ func TestAddKeyToAgentNoAgent(t *testing.T) {
 	err := addKeyToAgent(context.Background(), "/tmp/not-found", "")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestEnsureKeyReturnsEarlyWhenAlreadyLoadedInAgent(t *testing.T) {
+	tmp := t.TempDir()
+	binDir := filepath.Join(tmp, "bin")
+	if err := os.Mkdir(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBJgZ2aYy8z5L5YJtYl3N9J0W6w5R4eJ8hA4XrN2vQeQ test@example"
+	keyPath := filepath.Join(tmp, "id_test")
+	if err := os.WriteFile(keyPath, []byte("private"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath+".pub", []byte(pub+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sshAddPath := filepath.Join(binDir, "ssh-add")
+	sshAddScript := "#!/bin/sh\nif [ \"$1\" = \"-L\" ]; then\n  printf '%s\\n' '" + pub + "'\n  exit 0\nfi\necho unexpected ssh-add invocation >&2\nexit 1\n"
+	if err := os.WriteFile(sshAddPath, []byte(sshAddScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	oldSock := os.Getenv("SSH_AUTH_SOCK")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+	t.Setenv("SSH_AUTH_SOCK", filepath.Join(tmp, "agent.sock"))
+	defer os.Setenv("PATH", oldPath)
+	defer os.Setenv("SSH_AUTH_SOCK", oldSock)
+
+	auditor, err := audit.New(filepath.Join(tmp, "audit.log"))
+	if err != nil {
+		t.Fatalf("audit logger: %v", err)
+	}
+
+	r := &Runner{
+		cfg: &config.Config{
+			Profiles: map[string]config.Profile{
+				"p": {Host: "h", User: "u", Port: 22, ConnectTimeoutS: 1, KeyPath: keyPath, AuthMode: "agent"},
+			},
+		},
+		auditor: auditor,
+	}
+	got, err := r.EnsureKey(context.Background(), "p", "")
+	if err != nil {
+		t.Fatalf("EnsureKey error: %v", err)
+	}
+	if got != "SSH key already loaded into ssh-agent" {
+		t.Fatalf("unexpected message: %q", got)
 	}
 }

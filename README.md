@@ -56,6 +56,7 @@ That script:
 - registers the server as the 8th MCP server in `~/.codex/config.toml`
 - configures relaxed production aliases (`prod`, `production`, `production server`, etc.)
 - enables `force_ipv4` to match the local `personal_europlanet.sh` behavior (`ssh -4`)
+- configures `auth_mode: "agent"` so a prior `ssh-add` is enough for normal use
 
 ## Passphrase Flow
 

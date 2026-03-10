@@ -35,7 +35,7 @@ cat > "${CONFIG_FILE}" <<JSON
       "force_ipv4": true,
       "connect_timeout_sec": 15,
       "sudo_password_file": "${SUDO_PATH}",
-      "auth_mode": "key",
+      "auth_mode": "agent",
       "aliases": [
         "prod",
         "production",

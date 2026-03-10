@@ -32,6 +32,16 @@ func (r *Runner) EnsureKey(ctx context.Context, profileName, passphrase string) 
 		return "", fmt.Errorf("profile %s has no key_path", profileName)
 	}
 
+	loaded, err := keyLoadedInAgent(ctx, p.KeyPath)
+	if err != nil {
+		r.audit("ensure_key", profileName, "error", err.Error())
+		return "", err
+	}
+	if loaded {
+		r.audit("ensure_key", profileName, "ok", "key already loaded in ssh-agent")
+		return "SSH key already loaded into ssh-agent", nil
+	}
+
 	encrypted, err := keyNeedsPassphrase(p.KeyPath)
 	if err != nil {
 		r.audit("ensure_key", profileName, "error", err.Error())
@@ -192,6 +202,52 @@ func keyNeedsPassphrase(keyPath string) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("cannot inspect key passphrase status: %w (%s)", err, strings.TrimSpace(stderr.String()))
+}
+
+func keyLoadedInAgent(ctx context.Context, keyPath string) (bool, error) {
+	if os.Getenv("SSH_AUTH_SOCK") == "" {
+		return false, nil
+	}
+
+	pubKey, err := os.ReadFile(keyPath + ".pub")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read public key: %w", err)
+	}
+	want := publicKeyIdentity(string(pubKey))
+	if want == "" {
+		return false, fmt.Errorf("invalid public key file: %s.pub", keyPath)
+	}
+
+	cmd := exec.CommandContext(ctx, "ssh-add", "-L")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		s := strings.ToLower(strings.TrimSpace(stdout.String() + "\n" + stderr.String()))
+		if strings.Contains(s, "the agent has no identities") || strings.Contains(s, "could not open a connection to your authentication agent") {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspect ssh-agent keys: %w (%s)", err, strings.TrimSpace(stderr.String()))
+	}
+
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if publicKeyIdentity(line) == want {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func publicKeyIdentity(s string) string {
+	fields := strings.Fields(strings.TrimSpace(s))
+	if len(fields) < 2 {
+		return ""
+	}
+	return fields[0] + " " + fields[1]
 }
 
 func addKeyToAgent(ctx context.Context, keyPath, passphrase string) error {
