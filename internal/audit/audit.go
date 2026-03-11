@@ -47,6 +47,7 @@ func (l *Logger) Write(e Event) {
 	defer l.mu.Unlock()
 
 	e.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	e.Detail = redactSecrets(e.Detail)
 	b, err := json.Marshal(e)
 	if err != nil {
 		return
@@ -80,5 +81,25 @@ func (l *Logger) Tail(lines int) (string, error) {
 	if err := s.Err(); err != nil {
 		return "", err
 	}
+	for i := range buf {
+		buf[i] = redactSecrets(buf[i])
+	}
 	return strings.Join(buf, "\n"), nil
+}
+
+func redactSecrets(s string) string {
+	out := s
+	replacer := strings.NewReplacer(
+		"password", "[redacted]",
+		"Password", "[redacted]",
+		"passphrase", "[redacted]",
+		"Passphrase", "[redacted]",
+		"token", "[redacted]",
+		"Token", "[redacted]",
+	)
+	out = replacer.Replace(out)
+	if len(out) > 350 {
+		out = out[:350] + "..."
+	}
+	return out
 }

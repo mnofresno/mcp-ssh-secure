@@ -156,3 +156,94 @@ func TestEnsureKeyReturnsEarlyWhenAlreadyLoadedInAgent(t *testing.T) {
 		t.Fatalf("unexpected message: %q", got)
 	}
 }
+
+func TestRunSSHUsesMockSSHBinary(t *testing.T) {
+	tmp := t.TempDir()
+	binDir := filepath.Join(tmp, "bin")
+	if err := os.Mkdir(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	sshPath := filepath.Join(binDir, "ssh")
+	sshScript := "#!/bin/sh\nprintf 'ssh:%s\\n' \"$*\"\n"
+	if err := os.WriteFile(sshPath, []byte(sshScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+
+	auditor, err := audit.New(filepath.Join(tmp, "audit.log"))
+	if err != nil {
+		t.Fatalf("audit logger: %v", err)
+	}
+	r := NewRunner(&config.Config{
+		Profiles: map[string]config.Profile{
+			"p": {Host: "host", User: "user", Port: 22, ConnectTimeoutS: 1, AuthMode: "agent"},
+		},
+	}, auditor)
+
+	out, err := r.RunSSH("p", "whoami", time.Second, false)
+	if err != nil {
+		t.Fatalf("RunSSH error: %v", err)
+	}
+	if !strings.Contains(out, "user@host") || !strings.Contains(out, "whoami") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestRunSudoSSHReadsPasswordFileAndAuditTailRedacts(t *testing.T) {
+	tmp := t.TempDir()
+	binDir := filepath.Join(tmp, "bin")
+	if err := os.Mkdir(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	sshpassPath := filepath.Join(binDir, "sshpass")
+	sshpassScript := "#!/bin/sh\nif [ \"$1\" != \"-f\" ]; then\n  echo bad args >&2\n  exit 1\nfi\npwfile=\"$2\"\nshift 2\nif [ \"$1\" != \"ssh\" ]; then\n  echo missing ssh >&2\n  exit 1\nfi\nprintf 'pw=%s\\ncmd=%s\\n' \"$(cat \"$pwfile\")\" \"$*\"\n"
+	if err := os.WriteFile(sshpassPath, []byte(sshpassScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
+
+	passwordFile := filepath.Join(tmp, "password.txt")
+	if err := os.WriteFile(passwordFile, []byte("super-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	auditor, err := audit.New(filepath.Join(tmp, "audit.log"))
+	if err != nil {
+		t.Fatalf("audit logger: %v", err)
+	}
+	r := NewRunner(&config.Config{
+		Profiles: map[string]config.Profile{
+			"p": {
+				Host:             "host",
+				User:             "user",
+				Port:             22,
+				ConnectTimeoutS:  1,
+				AuthMode:         "password",
+				PasswordFile:     passwordFile,
+				SudoPasswordFile: passwordFile,
+			},
+		},
+	}, auditor)
+
+	out, err := r.RunSudoSSH("p", "id", time.Second, "")
+	if err != nil {
+		t.Fatalf("RunSudoSSH error: %v", err)
+	}
+	if !strings.Contains(out, "pw=super-secret") {
+		t.Fatalf("expected mock sshpass output, got %q", out)
+	}
+
+	auditOut, err := r.ReadAuditTail(10)
+	if err != nil {
+		t.Fatalf("ReadAuditTail error: %v", err)
+	}
+	if strings.Contains(strings.ToLower(auditOut), "super-secret") {
+		t.Fatalf("audit tail leaked password: %q", auditOut)
+	}
+}
